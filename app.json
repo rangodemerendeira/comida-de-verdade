@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "okau",
+    "slug": "okau",
+    "icon": "./assets/images/icon-light.png",
+    "scheme": "okau",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/icon-light.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4EFEA"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon-light.png",
+        "backgroundColor": "#F4EFEA"
+      }
+    },
+    "assetBundlePatterns": ["**/*"]
+  }
+}

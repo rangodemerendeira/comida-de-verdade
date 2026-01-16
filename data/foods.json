@@ -1,0 +1,30 @@
+[
+  {
+    "id": "arroz",
+    "nome": "Arroz",
+    "sinonimos": ["arroz branco", "arroz cru"],
+    "criado_por_usuario": false,
+    "categoria": "grãos",
+    "subcategoria": null,
+    "estado_padrao": "cru",
+    "estados_possiveis": ["cru", "cozido"],
+    "nova": 1,
+    "tags": ["base", "neutro"],
+    "status": "ativo",
+    "uso_count": 0
+  },
+  {
+    "id": "feijao",
+    "nome": "Feijão",
+    "sinonimos": ["feijão cru", "feijão seco"],
+    "criado_por_usuario": false,
+    "categoria": "leguminosas",
+    "subcategoria": null,
+    "estado_padrao": "cru",
+    "estados_possiveis": ["cru", "cozido"],
+    "nova": 1,
+    "tags": ["proteína vegetal"],
+    "status": "ativo",
+    "uso_count": 0
+  }
+]
