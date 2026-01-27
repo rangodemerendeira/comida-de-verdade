@@ -104,7 +104,7 @@ Responda SOMENTE com JSON válido no formato:
 `.trim();
 
 const response = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${process.env.GEMINI_API_KEY}`,
   {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -114,6 +114,7 @@ const response = await fetch(
     }),
   }
 );
+
 
 
 
