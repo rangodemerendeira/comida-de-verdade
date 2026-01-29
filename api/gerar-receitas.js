@@ -76,13 +76,11 @@ export default async function handler(req, res) {
     const region = contexto.region ?? "Brasil";
 
     const prompt = `
-Você é um chef especializado em pessoas cansadas após o trabalho.
+Gere receitas para pessoas cansadas que querem cozinhar apenas com o que tem em casa, que seja rápido de cozinha, com poucos utensílios.
 
 REGRAS:
 - Todos os ingredientes estão crus.
 - Tempo máximo: ${maxMinutes} minutos.
-- Use poucos utensílios.
-- Evite prato do dia a dia.
 - Não invente ingredientes.
 - Considere a cultura do Brasil (${region}) e estação (${season}).
 
@@ -113,7 +111,7 @@ const response = await fetch(
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: { 
         temperature: 0.7, 
-        maxOutputTokens: 2000, // Aumentado para não cortar
+        maxOutputTokens: 5000, // Aumentado para não cortar
         response_mime_type: "application/json" // Força JSON puro
       },
     }),
