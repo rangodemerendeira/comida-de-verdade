@@ -128,21 +128,40 @@ const response = await fetch(
       });
     }
 
-    const text =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+   function extractJsonLoose(text) {
+  const t = String(text || "").trim();
 
-    let parsed;
-    try {
-      const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").replace(/\n/g, " ").trim();
-  
-  parsed = JSON.parse(cleanedText); // Use o texto limpo aqui
-    } catch (parseError) {
+  // remove blocos ```json ``` se vierem
+  const cleaned = t.replace(/```json|```/g, "").trim();
+
+  // pega do primeiro { ao último }
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  const slice = cleaned.slice(start, end + 1);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    return null;
+  }
+}
+
+const parts = data?.candidates?.[0]?.content?.parts;
+const text = Array.isArray(parts)
+  ? parts.map((p) => p?.text || "").join("\n")
+  : "";
+
+const parsed = extractJsonLoose(text);
+
+if (!parsed) {
   return res.status(500).json({
     error: "Erro ao processar JSON da Gemini",
-    preview: String(text || "").slice(0, 300),
-    technical: String(parseError?.message || parseError),
+    preview: String(text || "").slice(0, 800),
+    technical: "Não foi possível extrair/parsear JSON válido",
   });
 }
+
 
 
     const receitas = Array.isArray(parsed?.receitas)
