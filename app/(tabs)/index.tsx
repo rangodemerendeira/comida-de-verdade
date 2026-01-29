@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   DeviceEventEmitter,
+  Image,
   ScrollView,
   Share,
   StyleSheet,
@@ -13,11 +14,18 @@ import {
   useColorScheme,
 } from "react-native";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { flushAnalytics, track } from "../../services/analytics";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Stack } from "expo-router";
+
+import { enviarTokenParaServidor, registerForPushNotificationsAsync } from "../../src/services/push";
 
 import FoodSearch from "../../components/FoodSearch";
 import { gerarReceitas } from "../../services/openai";
+
+import { SafeAreaView } from "react-native-safe-area-context";
+
 
 /* ================= CUSTO MÉDIO (MVP) ================= */
 const CUSTO_MEDIO: Record<string, number> = {
@@ -57,6 +65,8 @@ type Receita = {
     };
   };
   icv?: number | { score?: number; label?: string };
+  favorita?: boolean;
+
 };
 
 type HistoricoItem = {
@@ -83,9 +93,9 @@ function scoreFromICV(icv: Receita["icv"]): number | null {
 }
 
 function icvLabel(score: number) {
-  if (score >= 80) return "🟢 Comida de Verdade";
-  if (score >= 50) return "🟡 Algum processamento";
-  return "🔴 Evite no dia a dia";
+  if (score >= 80) return "🟢 nota";
+  if (score >= 50) return "🟡 nota";
+  return "🔴 nota";
 }
 
 function normalizarSaved(raw: any): Receita[] {
@@ -129,6 +139,63 @@ function nomesFromSaved(saved: Receita[]): string[] {
     .filter(Boolean);
 }
 
+// helpers / funções auxiliares
+async function salvarGeradasNoSaved(receitasGeradas: Receita[]) {
+  const raw = await AsyncStorage.getItem(SAVED_KEY);
+  const atual: Receita[] = raw ? JSON.parse(raw) : [];
+
+  const favMap = new Map<string, boolean>();
+  for (const r of atual) {
+    const k = (r?.nome || "").trim().toLowerCase();
+    if (k) favMap.set(k, !!r.favorita);
+  }
+
+  const merged = [...receitasGeradas, ...atual].map((r) => {
+    const k = (r?.nome || "").trim().toLowerCase();
+    return {
+      ...r,
+      favorita: k ? (favMap.get(k) ?? false) : false,
+      ingredientes: Array.isArray(r.ingredientes) ? r.ingredientes : [],
+      modo_preparo: Array.isArray(r.modo_preparo) ? r.modo_preparo : [],
+    } as Receita;
+  });
+
+  const seen = new Set<string>();
+  const uniq: Receita[] = [];
+  for (const r of merged) {
+    const k = (r?.nome || "").trim().toLowerCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(r);
+  }
+
+  await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(uniq));
+  DeviceEventEmitter.emit("saved_recipes_changed");
+}
+
+function HomeHeader({ colors }: { colors: any }) {
+  return (
+    <SafeAreaView style={{ backgroundColor: colors.bg }}>
+      <View style={[styles.headerWrap, { borderBottomColor: colors.divider }]}>
+        <View style={styles.headerLogoRow}>
+          <Image
+            source={require("../../assets/images/logo.png")}
+            style={{ width: 50, height: 50, resizeMode: "contain" }}
+          />
+        </View>
+
+        <View style={styles.headerSubtitleRow}>
+          <Text style={[styles.subtitle, { color: colors.muted, textAlign: "center" }]}>
+            Mais rápido que delivery. Mais barato. Mais saudável.
+          </Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+
+
 export default function HomeScreen() {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
@@ -154,21 +221,40 @@ export default function HomeScreen() {
     };
   }, [isDark]);
 
+    // ✅ PUSH: registra o token 1x quando a tela abrir
+  useEffect(() => {
+    (async () => {
+      await track("app_open", { screen: "home" });
+await flushAnalytics();
+
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          await enviarTokenParaServidor(token);
+          console.log("✅ Push token registrado:", token);
+        }
+      } catch (e) {
+        console.log("⚠️ Erro ao registrar push token:", e);
+      }
+    })();
+  }, []);
+
+
   const [alimentosDisponiveis, setAlimentosDisponiveis] = useState<string[]>([
     "cenoura",
     "batata",
     "alho",
     "cebola",
-    "arroz",
-    "feijão",
+    "abóbora",
+    "mandioca",
+    "tomate",
+    "leite",
+    "manteiga",
     "ovo",
     "frango",
-    "tomate",
-    "abobrinha",
-    "banana",
-    "mandioca",
-    "abóbora",
     "carne moída",
+    "banana",
+    "abacate",
   ]);
 
   const [selecionados, setSelecionados] = useState<string[]>([]);
@@ -207,18 +293,28 @@ export default function HomeScreen() {
 
   /* ========== toggle alimentos (inclui novos da busca) ========== */
   function toggleAlimento(alimento: string) {
-    const normalizado = alimento.toLowerCase().trim();
+  const normalizado = alimento.toLowerCase().trim();
 
-    setSelecionados((prev) =>
-      prev.includes(normalizado)
-        ? prev.filter((a) => a !== normalizado)
-        : [...prev, normalizado]
-    );
+  setSelecionados((prev) => {
+    const jaTem = prev.includes(normalizado);
+    const next = jaTem ? prev.filter((a) => a !== normalizado) : [...prev, normalizado];
 
-    setAlimentosDisponiveis((prev) =>
-      prev.includes(normalizado) ? prev : [...prev, normalizado]
-    );
-  }
+    // analytics (não trava a UI)
+    track(jaTem ? "ingredient_remove" : "ingredient_add", {
+      item: normalizado,
+      source: "chip_or_search",
+      selectedCount: next.length,
+    });
+    flushAnalytics();
+
+    return next;
+  });
+
+  setAlimentosDisponiveis((prev) =>
+    prev.includes(normalizado) ? prev : [...prev, normalizado]
+  );
+}
+
 
   /* ========== custo ========== */
   function custoEstimado(ingredientes: string[]) {
@@ -252,29 +348,54 @@ export default function HomeScreen() {
   }
 
   /* ========== gerar receitas ========== */
-  async function gerarReceitasUI() {
-    if (selecionados.length === 0) {
-      Alert.alert("Selecione ao menos um alimento");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setReceitas([]);
-      setReceitaAberta(null);
-
-      const data = await gerarReceitas(selecionados);
-      const lista: Receita[] = data?.receitas || [];
-
-      setReceitas(lista);
-      await salvarHistorico([...selecionados], lista);
-    } catch (e) {
-      console.error(e);
-      Alert.alert("Erro", "Não foi possível gerar receitas");
-    } finally {
-      setLoading(false);
-    }
+ async function gerarReceitasUI() {
+  if (selecionados.length === 0) {
+    Alert.alert("Selecione ao menos um alimento");
+    return;
   }
+
+  const start = Date.now();
+
+  try {
+    setLoading(true);
+    setReceitas([]);
+    setReceitaAberta(null);
+
+    await track("generate_recipes_start", {
+      alimentos: [...selecionados],
+      countSelected: selecionados.length,
+    });
+    await flushAnalytics();
+
+    const data = await gerarReceitas(selecionados);
+
+    // ✅ compatível com backend antigo (data.receitas) e novo (data.recipes)
+const lista: Receita[] = data?.receitas || [];
+
+    setReceitas(lista);
+    await salvarGeradasNoSaved(lista);
+    await salvarHistorico([...selecionados], lista);
+
+    await track("generate_recipes_success", {
+      durationMs: Date.now() - start,
+      recipesCount: lista.length,
+    });
+    await flushAnalytics();
+  } catch (e: any) {
+    console.error(e);
+
+    await track("generate_recipes_error", {
+      durationMs: Date.now() - start,
+      message: String(e?.message || e),
+    });
+    await flushAnalytics();
+
+    Alert.alert("Erro", "Não foi possível gerar receitas");
+  } finally {
+    setLoading(false);
+  }
+}
+
 
   /* ========== limpar tela ========== */
   function limparTela() {
@@ -320,7 +441,7 @@ export default function HomeScreen() {
       linhas.push("");
     }
 
-    linhas.push("Feito no app okau - comida de casa");
+    linhas.push("Feito no app U - Mais rápido que delivery. Mais saudável. Mais Barato");
     return linhas.join("\n");
   }
 
@@ -357,6 +478,10 @@ export default function HomeScreen() {
     setSalvasReceitas(novas);
     await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(novas));
 
+    await track("recipe_save", { nome: r.nome, action: "add" });
+    await flushAnalytics();
+
+
     // ✅ avisa outras telas
     DeviceEventEmitter.emit("saved_recipes_changed");
   }
@@ -369,6 +494,10 @@ export default function HomeScreen() {
 
     setSalvasReceitas(novas);
     await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(novas));
+
+    await track("recipe_save", { nome, action: "remove" });
+    await flushAnalytics();
+
 
     // ✅ avisa outras telas
     DeviceEventEmitter.emit("saved_recipes_changed");
@@ -423,11 +552,19 @@ export default function HomeScreen() {
   const botaoCor = hasReceitas ? colors.altPrimary : colors.primary;
 
   return (
+    <>
+    <Stack.Screen
+  options={{
+    headerShown: true,
+    header: () => <HomeHeader colors={colors} />,
+  }}
+/>
+
     <ScrollView
       style={[styles.container, { backgroundColor: colors.bg }]}
-      contentContainerStyle={{ paddingTop: 56, paddingBottom: 28 }}
+contentContainerStyle={{ paddingTop: 0, paddingBottom: 28 }}
     >
-      {/* HEADER */} <View style={styles.header}> <Text style={[styles.title, { color: colors.text }]}>okau</Text> <Text style={[styles.subtitle, { color: colors.muted }]}> Mais rápido que delivery. Mais barato. Mais saudável. </Text> </View>
+
       {/* SEÇÃO */}
       <Text style={[styles.sectionTitle, { color: colors.text }]}>
         O que você tem em casa?
@@ -504,7 +641,7 @@ export default function HomeScreen() {
       {loading && (
         <View style={[styles.dialogo, { borderColor: colors.divider }]}>
           <Text style={[styles.dialogoTexto, { color: colors.muted }]}>
-            🤔 Pensando em receitas criativas com os ingredientes escolhidos…
+            Selecionando as melhores receitas para você…
           </Text>
         </View>
       )}
@@ -535,7 +672,19 @@ export default function HomeScreen() {
                   styles.card,
                   { backgroundColor: colors.cardBg, borderColor: colors.divider },
                 ]}
-                onPress={() => setReceitaAberta(aberta ? null : index)}
+onPress={() => {
+  const vaiAbrir = !aberta;
+  setReceitaAberta(vaiAbrir ? index : null);
+
+  if (vaiAbrir) {
+    track("recipe_open", {
+      nome: receita.nome,
+      index,
+      hasNutrition: !!receita.nutricao,
+    });
+    flushAnalytics();
+  }
+}}
                 activeOpacity={0.9}
               >
                 <Text style={[styles.cardTitle, { color: colors.text }]}>
@@ -654,7 +803,7 @@ export default function HomeScreen() {
                           ]}
                           onPress={() => salvarReceitaCompleta(receita)}
                         >
-                          <Text style={styles.salvarTexto}>Salvar receita</Text>
+                          <Text style={styles.salvarTexto}>Adicionar aos recentes</Text>
                         </TouchableOpacity>
                       ) : (
                         <TouchableOpacity
@@ -664,7 +813,7 @@ export default function HomeScreen() {
                           ]}
                           onPress={() => confirmarRemover(receita.nome)}
                         >
-                          <Text style={styles.salvarTexto}>Remover dos salvos</Text>
+                          <Text style={styles.salvarTexto}>Remover dos recentes</Text>
                         </TouchableOpacity>
                       )}
 
@@ -688,16 +837,18 @@ export default function HomeScreen() {
         </View>
       )}
     </ScrollView>
+    </>
   );
 }
 
 /* ================= STYLES ================= */
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 20 },
+  container: { paddingHorizontal: 20},
 
-   header: { marginBottom: 18 },
+ header: { marginBottom: 4, alignItems: "center", },
   title: { fontSize: 30, fontWeight: "700" },
-  subtitle: { marginTop: 6 },
+  subtitle: {  fontSize: 13,
+  lineHeight: 18 },
 
   sectionTitle: {
     fontSize: 18,
@@ -804,4 +955,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   shareTexto: { fontWeight: "900" },
+
+headerWrap: {
+  borderBottomWidth: StyleSheet.hairlineWidth,
+  paddingBottom: 10,
+},
+
+headerLogoRow: {
+  alignItems: "center",
+  justifyContent: "center",
+  paddingTop: 6,
+  paddingBottom: 10,
+},
+
+headerSubtitleRow: {
+  paddingHorizontal: 16,
+  paddingTop: 2,
+  paddingBottom: 6,
+},
+
+
 });

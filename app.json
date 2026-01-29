@@ -1,26 +1,35 @@
 {
   "expo": {
-    "name": "okau",
-    "slug": "okau",
-    "icon": "./assets/images/icon-light.png",
-    "scheme": "okau",
+    "name": "U - simples até no nome",
+    "slug": "U",
+    "icon": "./assets/images/icon-dark.png",
+    "scheme": "u",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/icon-light.png",
+      "image": "./assets/images/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F4EFEA"
+      "backgroundColor": "#1F3D2B"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon-light.png",
-        "backgroundColor": "#F4EFEA"
+        "foregroundImage": "./assets/images/logo-light.png",
+        "backgroundColor": "#1F3D2B"
+      },
+      "package": "com.rangodemerendeira.U"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7fc68ea0-8e97-494d-82b0-e0d3399e4c47"
       }
     },
-    "assetBundlePatterns": ["**/*"]
+    "owner": "rangodemerendeira"
   }
 }
