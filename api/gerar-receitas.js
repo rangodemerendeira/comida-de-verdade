@@ -111,7 +111,11 @@ const response = await fetch(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1000,response_mime_type: "application/json"},
+      generationConfig: { 
+        temperature: 0.7, 
+        maxOutputTokens: 2000, // Aumentado para não cortar
+        response_mime_type: "application/json" // Força JSON puro
+      },
     }),
   }
 );
@@ -128,40 +132,20 @@ const response = await fetch(
       });
     }
 
-   function extractJsonLoose(text) {
-  const t = String(text || "").trim();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-  // remove blocos ```json ``` se vierem
-  const cleaned = t.replace(/```json|```/g, "").trim();
-
-  // pega do primeiro { ao último }
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-
-  const slice = cleaned.slice(start, end + 1);
-  try {
-    return JSON.parse(slice);
-  } catch {
-    return null;
-  }
-}
-
-const parts = data?.candidates?.[0]?.content?.parts;
-const text = Array.isArray(parts)
-  ? parts.map((p) => p?.text || "").join("\n")
-  : "";
-
-const parsed = extractJsonLoose(text);
-
-if (!parsed) {
+let parsed;
+try {
+  // Com response_mime_type, o texto já vem limpo!
+  parsed = JSON.parse(text);
+} catch (e) {
+  // Se ainda der erro, mostramos o que sobrou no texto
   return res.status(500).json({
-    error: "Erro ao processar JSON da Gemini",
-    preview: String(text || "").slice(0, 800),
-    technical: "Não foi possível extrair/parsear JSON válido",
+    error: "Erro no parse",
+    length: text.length,
+    preview: text.substring(text.length - 30) // Mostra o final do texto para ver se cortou
   });
 }
-
 
 
     const receitas = Array.isArray(parsed?.receitas)
