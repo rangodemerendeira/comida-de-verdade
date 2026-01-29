@@ -101,9 +101,7 @@ Responda SOMENTE com JSON válido no formato:
     }
   ]
 }
-// Adicione isso ao final da sua variável prompt:
-"IMPORTANTE: Retorne apenas o objeto JSON em uma única linha, sem formatação de bloco de código."
-
+IMPORTANTE: Retorne apenas o objeto JSON em uma única linha, sem formatação de bloco de código.
 `.trim();
 
 const response = await fetch(
@@ -138,13 +136,14 @@ const response = await fetch(
       const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").replace(/\n/g, " ").trim();
   
   parsed = JSON.parse(cleanedText); // Use o texto limpo aqui
-    } catch {
-      return res.status(500).json({
-        error: "Erro ao processar JSON da Gemini",
-        preview: text.slice(0, 100),
-        technical: parseError.message
-      });
-    }
+    } catch (parseError) {
+  return res.status(500).json({
+    error: "Erro ao processar JSON da Gemini",
+    preview: String(text || "").slice(0, 300),
+    technical: String(parseError?.message || parseError),
+  });
+}
+
 
     const receitas = Array.isArray(parsed?.receitas)
       ? parsed.receitas.map((r) => ({ ...r, icv: icvScore }))
