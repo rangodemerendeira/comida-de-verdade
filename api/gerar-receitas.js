@@ -101,6 +101,9 @@ Responda SOMENTE com JSON válido no formato:
     }
   ]
 }
+// Adicione isso ao final da sua variável prompt:
+"IMPORTANTE: Retorne apenas o objeto JSON em uma única linha, sem formatação de bloco de código."
+
 `.trim();
 
 const response = await fetch(
@@ -110,7 +113,7 @@ const response = await fetch(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 800,response_mime_type: "application/json"},
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1000,response_mime_type: "application/json"},
     }),
   }
 );
@@ -132,13 +135,14 @@ const response = await fetch(
 
     let parsed;
     try {
-      const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+      const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").replace(/\n/g, " ").trim();
   
   parsed = JSON.parse(cleanedText); // Use o texto limpo aqui
     } catch {
       return res.status(500).json({
-        error: "Gemini retornou texto inválido (não JSON)",
-        preview: text.slice(0, 500),
+        error: "Erro ao processar JSON da Gemini",
+        preview: text.slice(0, 100),
+        technical: parseError.message
       });
     }
 
