@@ -110,7 +110,7 @@ const response = await fetch(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 800 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 800,response_mime_type: "application/json"},
     }),
   }
 );
@@ -132,7 +132,9 @@ const response = await fetch(
 
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+  
+  parsed = JSON.parse(cleanedText); // Use o texto limpo aqui
     } catch {
       return res.status(500).json({
         error: "Gemini retornou texto inválido (não JSON)",
